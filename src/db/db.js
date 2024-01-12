@@ -12,7 +12,7 @@ const connectDB = async ()=>{
     catch(err){
         console.log("DB connection error: ",err)
         process.exit(1);
-    }
-}
+    } 
+} 
 
 export default connectDB

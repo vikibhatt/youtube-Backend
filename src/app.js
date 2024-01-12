@@ -1,14 +1,10 @@
 import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
-import dotenv from 'dotenv'
 import {limitSize} from './constants.js'
  
 
 const app = express();
-dotenv.config({
-    path:'./env'
-});
 
 app.use(cors({
     origin: process.env.CROSS_ORIGIN,
@@ -22,4 +18,8 @@ app.use(express.static('public'))
 app.use(cookieParser())
 
 
-export default app
+import userRouter from './routes/user.routes.js'
+
+app.use('/api/v1/users',userRouter)
+
+export {app}
