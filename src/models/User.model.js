@@ -38,7 +38,7 @@ const UserSchema = new mongoose.Schema({
         type:String,
         required:[true, "Password is required"],
     },
-    refreshTokens:{
+    refreshToken:{
         type:String
     }
 },{timestamps:true})
@@ -55,8 +55,8 @@ UserSchema.pre('save', async function (next){
    }
 })
 
-UserSchema.methods.isPasswordCorrect = async function(password){
-    return await password.bcrypt.compare(password,this.password)
+UserSchema.methods.isPasswordCorrect = async function (password) {
+    return await bcrypt.compare(password, this.password);
 }
 
 UserSchema.methods.accessTokenGenerator = function(){
@@ -82,4 +82,4 @@ UserSchema.methods.refreshTokenGenerator = function(){
     )
 }
 
-export const User = mongoose.model('User',UserSchema)
+export const User = mongoose.model('User',UserSchema) 
