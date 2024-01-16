@@ -16,7 +16,7 @@ router.route('/register').post(
             maxCount: 1
         }
     ])
-    ,registerUser)
+    ,registerUser) 
 router.route('/login').post(loginUser)
 router.route('/getUser').get(veryfyJWT, getUser)
 router.route('/logout').get(veryfyJWT,logoutUser)

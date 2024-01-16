@@ -1,13 +1,13 @@
-import mongoose from 'mongoose'
+import mongoose,{Schema} from 'mongoose'
 
-const subscriptionSchema = new mongoose.Schema({
+const subscriptionSchema = new Schema({
     subscriber:{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Users'
+        type: Schema.Types.ObjectId,
+        ref: 'User'
     },
     channel:{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Users'
+        type: Schema.Types.ObjectId,
+        ref: 'User'
     }
 },{timestamps:true})
 

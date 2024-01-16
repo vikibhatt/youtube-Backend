@@ -38,31 +38,29 @@ const registerUser = asyncHandler(async (req,res)=>{
     [username,email,fullname,password].some((field)=>
     field?.trim() === "")
    ){
-    throw new ApiError(400,"All fields required")
+      throw new ApiError(403, "All fields required")
    }
-
-   console.log(username,email,fullname,password)
 
    const existingUserName = await User.findOne({username})
    const existingUser = await User.findOne({email})
 
    if(existingUser){
-      throw new ApiError(401,"User already exists")
+      throw new ApiError(401, "User already exist")
    }
    
    if(existingUserName){
-      throw new ApiError(401,"UserName already taken")
+      throw new ApiError(401, "Username already taken")
    }
 
    let avatarLocalPath;
-   let coverImageLocalPath;
+   let coverImageLocalPath; 
 
    if(req.field && Array.isArray(req.field.avatar,req.field.coverImage)){
       if(req.field.avatar.length > 0){
          avatarLocalPath = req.field.avatar[0].path
       }
       if(req.field.coverImage.length > 0){
-         avatarLocalPath = req.field.coverImage[0].path
+         coverImageLocalPath = req.field.coverImage[0].path 
       }
    }
 
@@ -83,11 +81,13 @@ const registerUser = asyncHandler(async (req,res)=>{
    )
 
    if(!createdUser){
-    throw new ApiError(500,"error while registering new user")
+     throw new ApiError(500,"error while registering new user")
    }
 
+   console.log("User created successfully") 
+
    return res.status(201).json(
-    new ApiResponse(201,createdUser,"User created successfully")
+    new ApiResponse(201,createdUser, "User created successfully") 
    )
 }) 
 
