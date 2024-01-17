@@ -44,19 +44,20 @@ const registerUser = asyncHandler(async (req,res)=>{
    let avatarLocalPath;
    let coverImageLocalPath; 
 
-   if(req.files && Array.isArray(req.files.avatar,req.files.coverImage)){
-      if(req.files.avatar.length > 0){
-         avatarLocalPath = req.files.avatar[0].path
+   if(req.file && Array.isArray(req.file.avatar)){
+      if(req.file.avatar.length > 0){
+         avatarLocalPath = req.file.avatar[0].path
       }
-      if(req.files.coverImage.length > 0){
-         coverImageLocalPath = req.files.coverImage[0].path 
+   }
+
+   if(req.file && Array.isArray(req.file.coverImage)){
+      if(req.file.coverImage.length > 0){
+         coverImageLocalPath = req.file.coverImage[0].path 
       }
    }
 
    const avatar = await cloudnaryFileUpload(avatarLocalPath)
    const coverImage = await cloudnaryFileUpload(coverImageLocalPath) 
-   fs.unlinkSync(avatarLocalPath)
-   fs.unlinkSync(coverImageLocalPath)
 
    const user = await User.create({
     fullname,
@@ -240,4 +241,43 @@ const changeCurrentPassword = asyncHandler(async(req, res)=>{
    .json(new ApiResponse(200,{},"Password successfully updated"))
 })
 
-export {registerUser,loginUser,logoutUser,getUser,refreshTokenValidator,changeCurrentPassword} 
+const updateUserDetails = asyncHandler(async(req,res)=>{
+   const {fullName, username} = req.body
+
+   let avatarLocalPath;
+   let coverImageLocalPath; 
+
+   if(req.file && Array.isArray(req.file?.avatar)){
+      if(req.file.avatar.length > 0){
+         avatarLocalPath = req.file.avatar[0].path
+      }
+   }
+
+   if(req.file && Array.isArray(req.file?.coverImage)){
+      if(req.file.coverImage.length > 0){
+         coverImageLocalPath = req.file.coverImage[0].path 
+      }
+   }
+
+   const avatar = await cloudnaryFileUpload(avatarLocalPath)
+   const coverImage = await cloudnaryFileUpload(coverImageLocalPath) 
+
+   const updatedUser = await User.findByIdAndUpdate(
+      req.user?._id,
+      {
+         $set:{
+            fullname: fullName,
+            username: username,
+            avatar: avatar?.url,
+            coverImage: coverImage?.url 
+         }
+      },
+      {new: true}
+   ).select("-password -refreshToken")
+
+   return res
+   .status(200)
+   .json(new ApiResponse(200,updatedUser,"User details updated successfully"))
+})
+
+export {registerUser,loginUser,logoutUser,getUser,refreshTokenValidator,changeCurrentPassword,updateUserDetails}  
