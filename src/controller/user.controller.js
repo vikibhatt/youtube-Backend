@@ -1,7 +1,7 @@
 import {asyncHandler} from '../utils/asyncHandler.js'
 import {ApiError} from '../utils/apiError.js'
 import {User} from '../models/User.model.js'
-import cloudnaryFileUpload from '../utils/cloudnary.js'
+import {cloudnaryFileUpload, destroyOldFilesFromCloudinary} from '../utils/cloudnary.js'
 import {ApiResponse} from '../utils/apiResponse.js'
 import jwt from 'jsonwebtoken'
 
@@ -44,15 +44,15 @@ const registerUser = asyncHandler(async (req,res)=>{
    let avatarLocalPath;
    let coverImageLocalPath; 
 
-   if(req.file && Array.isArray(req.file.avatar)){
-      if(req.file.avatar.length > 0){
-         avatarLocalPath = req.file.avatar[0].path
+   if(req.files && Array.isArray(req.files?.avatar)){
+      if(req.files?.avatar.length > 0){
+         avatarLocalPath = req.files?.avatar[0]?.path
       }
    }
 
-   if(req.file && Array.isArray(req.file.coverImage)){
-      if(req.file.coverImage.length > 0){
-         coverImageLocalPath = req.file.coverImage[0].path 
+   if(req.files && Array.isArray(req.files?.coverImage)){
+      if(req.files?.coverImage.length > 0){
+         coverImageLocalPath = req.files?.coverImage[0]?.path 
       }
    }
 
@@ -247,37 +247,41 @@ const updateUserDetails = asyncHandler(async(req,res)=>{
    let avatarLocalPath;
    let coverImageLocalPath; 
 
-   if(req.file && Array.isArray(req.file?.avatar)){
-      if(req.file.avatar.length > 0){
-         avatarLocalPath = req.file.avatar[0].path
+   if(req.files && Array.isArray(req.files?.avatar)){
+      if(req.files?.avatar.length > 0){
+         avatarLocalPath = req.files?.avatar[0]?.path
       }
    }
 
-   if(req.file && Array.isArray(req.file?.coverImage)){
-      if(req.file.coverImage.length > 0){
-         coverImageLocalPath = req.file.coverImage[0].path 
+   if(req.files && Array.isArray(req.files?.coverImage)){
+      if(req.files?.coverImage.length > 0){
+         coverImageLocalPath = req.files?.coverImage[0]?.path 
       }
    }
 
    const avatar = await cloudnaryFileUpload(avatarLocalPath)
    const coverImage = await cloudnaryFileUpload(coverImageLocalPath) 
 
-   const updatedUser = await User.findByIdAndUpdate(
-      req.user?._id,
-      {
-         $set:{
-            fullname: fullName,
-            username: username,
-            avatar: avatar?.url,
-            coverImage: coverImage?.url 
-         }
-      },
-      {new: true}
-   ).select("-password -refreshToken")
+   const currUser = await User.findById(req.user?._id).select("-password -refreshToken")
+
+   if(currUser?.avatar){
+      await destroyOldFilesFromCloudinary(currUser.avatar)
+   }
+
+   if(currUser?.coverImage){
+      await destroyOldFilesFromCloudinary(currUser.coverImage)
+   }
+
+   currUser.fullname = fullName;
+   currUser.username = username;
+   currUser.avatar = avatar?.url;
+   currUser.coverImage = coverImage?.url;
+
+   currUser.save({validateBeforeSave: false})
 
    return res
    .status(200)
-   .json(new ApiResponse(200,updatedUser,"User details updated successfully"))
+   .json(new ApiResponse(200,currUser,"User details updated successfully"))
 })
 
 export {registerUser,loginUser,logoutUser,getUser,refreshTokenValidator,changeCurrentPassword,updateUserDetails}  

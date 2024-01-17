@@ -24,5 +24,20 @@ const cloudnaryFileUpload = async(localFilePath) =>{
     }
 }
 
+const getPublicIdFromUrl = (url) => {
+    const publicIdMatches = url.match(/\/v\d+\/([^/]+)(\/[^.]+)?\./);
+    return publicIdMatches ? publicIdMatches[1] : null;
+};
+  
+const destroyOldFilesFromCloudinary = async (oldFilePath) => {
+    if (oldFilePath) {
+      try {
+        await cloudnary.uploader.destroy(getPublicIdFromUrl(oldFilePath));
+      } catch (error) {
+        console.error(`Error deleting file from Cloudinary`);
+      }
+    }
+};
 
-export default cloudnaryFileUpload
+
+export {cloudnaryFileUpload, destroyOldFilesFromCloudinary} 
