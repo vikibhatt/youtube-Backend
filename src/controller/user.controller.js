@@ -21,17 +21,6 @@ const generateAccessTokenAndRefreshToken = async(userId) => {
 }
 
 const registerUser = asyncHandler(async (req,res)=>{
-   // get user details
-   // validatation - not empty
-   // check if user is already exists
-   // check for images, check for avatar
-   // upload them to cloudnary, avatar
-   // create user object- create entry in display: 'block',
-   // remove passowrd and refresh token fields from response
-   // check for user creation
-   // return response
-
-
    const {username,email,fullname,password} = req.body
 
    if(
@@ -55,17 +44,19 @@ const registerUser = asyncHandler(async (req,res)=>{
    let avatarLocalPath;
    let coverImageLocalPath; 
 
-   if(req.field && Array.isArray(req.field.avatar,req.field.coverImage)){
-      if(req.field.avatar.length > 0){
-         avatarLocalPath = req.field.avatar[0].path
+   if(req.files && Array.isArray(req.files.avatar,req.files.coverImage)){
+      if(req.files.avatar.length > 0){
+         avatarLocalPath = req.files.avatar[0].path
       }
-      if(req.field.coverImage.length > 0){
-         coverImageLocalPath = req.field.coverImage[0].path 
+      if(req.files.coverImage.length > 0){
+         coverImageLocalPath = req.files.coverImage[0].path 
       }
    }
 
    const avatar = await cloudnaryFileUpload(avatarLocalPath)
-   const coverImage = await cloudnaryFileUpload(coverImageLocalPath)
+   const coverImage = await cloudnaryFileUpload(coverImageLocalPath) 
+   fs.unlinkSync(avatarLocalPath)
+   fs.unlinkSync(coverImageLocalPath)
 
    const user = await User.create({
     fullname,
@@ -150,6 +141,7 @@ const loginUser = asyncHandler(async(req,res)=>{
 
 const getUser = asyncHandler(async(req,res)=>{
    const user = req.user
+
    res.status(200)
    .json(new ApiResponse(200,{user},"User details successfully retrieved"))
 })
@@ -219,4 +211,33 @@ const refreshTokenValidator = asyncHandler(async(req,res)=>{
    }
 })
 
-export {registerUser,loginUser,logoutUser,getUser,refreshTokenValidator} 
+const changeCurrentPassword = asyncHandler(async(req, res)=>{
+   const {oldPassword, newPassword, confirmPassword} = req.body;
+   const user = await User.findById(req.user?._id);
+
+   if(
+      [oldPassword, newPassword, confirmPassword].some((field)=>
+      field?.trim() === "")
+     ){
+      throw new ApiError(400,"All fields required")
+   }
+
+   if(newPassword !==  confirmPassword){
+      throw new ApiError(402,"Password and Confirm Password must be same")
+   }
+ 
+   const checkPassword = await user.isPasswordCorrect(oldPassword)
+ 
+   if(!checkPassword){
+      throw new ApiError(405,"Invalid Password")
+   }
+
+   user.password = newPassword
+   await user.save({validateBeforeSave: false}) 
+
+   return res
+   .status(200)
+   .json(new ApiResponse(200,{},"Password successfully updated"))
+})
+
+export {registerUser,loginUser,logoutUser,getUser,refreshTokenValidator,changeCurrentPassword} 
