@@ -84,14 +84,6 @@ const registerUser = asyncHandler(async (req,res)=>{
 }) 
 
 const loginUser = asyncHandler(async(req,res)=>{
-   // get data from client
-   // validate user based on username or email
-   // find the user
-   // validate password
-   // generate access token and refresh token and save refresh token on user
-   // send cookies 
-   // send response
-
    const {username,email,password} = req.body;
    if(
       [username, email, password].some((field)=>
@@ -284,4 +276,34 @@ const updateUserDetails = asyncHandler(async(req,res)=>{
    .json(new ApiResponse(200,currUser,"User details updated successfully"))
 })
 
-export {registerUser,loginUser,logoutUser,getUser,refreshTokenValidator,changeCurrentPassword,updateUserDetails}  
+const deleteUserProfile = asyncHandler(async(req, res)=>{
+   const {password} = req.body
+   const currUser = await User.findById(req.user?._id)
+
+   const checkPassword = await currUser.isPasswordCorrect(password)
+   
+   if(!checkPassword){
+      throw new ApiError(402,"Invalid Password")
+   }
+
+   const avatar = currUser?.avatar
+   const coverImage = currUser?.coverImage
+
+   try {
+      await currUser.deleteOne();
+      if(avatar){
+         await destroyOldFilesFromCloudinary(avatar)
+      }
+   
+      if(coverImage){
+         await destroyOldFilesFromCloudinary(coverImage)
+      }
+      return res
+      .status(200)
+      .json(new ApiResponse(200,{},"User profile deleted successfully"))
+   } catch (error) {
+      throw new ApiError(500,error)
+   }
+})
+
+export {registerUser,loginUser,logoutUser,getUser,refreshTokenValidator,changeCurrentPassword,updateUserDetails, deleteUserProfile}  
