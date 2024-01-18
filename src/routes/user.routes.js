@@ -1,5 +1,5 @@
 import {Router} from 'express'
-import {changeCurrentPassword, deleteUserProfile, getUser, loginUser, logoutUser, refreshTokenValidator, registerUser, updateUserDetails} from '../controller/user.controller.js'
+import {changeCurrentPassword, deleteUserProfile, getUser, getUserProfileDetails, getWatchHistory, loginUser, logoutUser, refreshTokenValidator, registerUser, updateUserDetails} from '../controller/user.controller.js'
 import {upload} from '../middlewares/multer.middleware.js'
 import {veryfyJWT} from '../middlewares/auth.controller.js'
 
@@ -35,6 +35,8 @@ router.route('/changeUserDetails').post(
     ]),
     updateUserDetails)
 router.route('/deleteProfile').post(veryfyJWT,deleteUserProfile)
+router.route('/getUserProfileDetails').get(getUserProfileDetails) 
+router.route('/getWatchHistory').get(veryfyJWT,getWatchHistory)
 router.route('/refresh-token').post(refreshTokenValidator)
 
 export default router

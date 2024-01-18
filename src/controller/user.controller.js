@@ -4,6 +4,7 @@ import {User} from '../models/User.model.js'
 import {cloudnaryFileUpload, destroyOldFilesFromCloudinary} from '../utils/cloudnary.js'
 import {ApiResponse} from '../utils/apiResponse.js'
 import jwt from 'jsonwebtoken'
+import mongoose from 'mongoose'
 
 const generateAccessTokenAndRefreshToken = async(userId) => {
    try {
@@ -114,6 +115,8 @@ const loginUser = asyncHandler(async(req,res)=>{
 
    const loggedInUser = await User.findOne(user._id).select("-password -refreshToken");
 
+   console.log("User logged in successfully") 
+
    const options = {
       httpOnly: true,
       secure: true
@@ -135,6 +138,8 @@ const loginUser = asyncHandler(async(req,res)=>{
 const getUser = asyncHandler(async(req,res)=>{
    const user = req.user
 
+   console.log("User successfully retrieved") 
+
    res.status(200)
    .json(new ApiResponse(200,{user},"User details successfully retrieved"))
 })
@@ -151,6 +156,8 @@ const logoutUser = asyncHandler(async(req,res) =>{
          new: true
       }
    )
+
+   console.log("User logout successfully") 
 
    const options = {
       httpOnly: true,
@@ -185,6 +192,8 @@ const refreshTokenValidator = asyncHandler(async(req,res)=>{
       }
    
       const {accessToken, refreshToken} = await generateAccessTokenAndRefreshToken(user._id)
+
+      console.log("Session refreshed successfully")
    
       const options = {
          httpOnly: true,
@@ -227,6 +236,8 @@ const changeCurrentPassword = asyncHandler(async(req, res)=>{
 
    user.password = newPassword
    await user.save({validateBeforeSave: false}) 
+
+   console.log("Password successfully updated")
 
    return res
    .status(200)
@@ -298,6 +309,8 @@ const deleteUserProfile = asyncHandler(async(req, res)=>{
       if(coverImage){
          await destroyOldFilesFromCloudinary(coverImage)
       }
+
+      console.log("User profile deleted successfully")
       return res
       .status(200)
       .json(new ApiResponse(200,{},"User profile deleted successfully"))
@@ -306,4 +319,129 @@ const deleteUserProfile = asyncHandler(async(req, res)=>{
    }
 })
 
-export {registerUser,loginUser,logoutUser,getUser,refreshTokenValidator,changeCurrentPassword,updateUserDetails, deleteUserProfile}  
+const getUserProfileDetails = asyncHandler(async(req, res)=>{
+   const {username} = req.query
+
+   if(!username){
+      throw new ApiError(401,"username not found")
+   }
+
+   const channel = await User.aggregate(
+      [{
+         $match: {
+            username: username?.toLowerCase() 
+         }
+      },
+      {
+         $lookup:{
+            from: "subscriptions",  
+            localField: "_id",      
+            foreignField: "channel",
+            as: "subscribers"
+         }
+      },
+      {
+         $lookup:{
+            from: "subscriptions",
+            localField: "_id",
+            foreignField: "subscriber",
+            as: "subscribedTo"
+         }
+      },
+      {
+         $addFields:{
+            subscribersCount: {
+               $size: "$subscribers" 
+            },
+            subscribedToCount: {
+               $size: "$subscribedTo"
+            },
+            isSubscribed: {
+               $cond:{
+                  if: { $in: [req.user?._id, "$subscribers.subscriber"]},
+                  then: true,
+                  else: false
+               }
+            }
+         }
+      },
+      {
+         $project: {
+            fullName: 1,
+            username: 1,
+            subscribersCount: 1,
+            subscribedToCount: 1,
+            avatar: 1,
+            coverImage: 1,
+            isSubscribed: 1
+         }
+      }]
+   )
+
+   if(!channel?.length){
+      throw new ApiError(404,"Channel not exist")
+   }
+
+   console.log("User channel fetched successfully")
+
+   return res 
+   .status(200)
+   .json(
+      new ApiResponse(200,channel[0],"User channel fetched successfully")
+   )
+})
+
+
+const getWatchHistory = asyncHandler(async(req, res)=>{
+   const user = await User.aggregate([
+      {
+         $match: {
+            _id: new mongoose.Types.ObjectId(req.user._id)
+         }
+      },
+      {
+         $lookup:{
+            from: 'videos',
+            localField: 'watchHistory',
+            foreignField: '_id',
+            as: "watchHistory",
+            pipeline: [
+               {
+                  $lookup:{
+                     from: 'users',
+                     localField: 'owner',
+                     foreignField: '_id',
+                     as: "owner",
+                     pipeline:[
+                        {
+                           $project: {
+                              fullName: 1,
+                              username: 1,
+                              avatar: 1,
+                           }
+                        }
+                     ]
+                  },
+               },
+               {
+                  $addFields:{
+                     owner: {
+                        $first: "$owner"
+                     }
+                  }
+               }
+            ]
+         }
+      }
+   ])
+
+   console.log("user Watch History fetched successfully")
+
+   return res
+   .status(200)
+   .json(
+      new ApiResponse(200,user[0].watchHistory,"user Watch History fetched successfully")
+   )
+})
+
+export { registerUser, loginUser, logoutUser, getUser, refreshTokenValidator, changeCurrentPassword,updateUserDetails, deleteUserProfile, getUserProfileDetails, getWatchHistory }   
