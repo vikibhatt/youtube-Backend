@@ -3,7 +3,7 @@ import mongooseAggregatePaginate from 'mongoose-aggregate-paginate-v2'
 
 const videoSchema = new mongoose.Schema({
     video:{
-        type:String,   //cloudnary
+        type:String,   
         required:true,
     },
     thumbnail:{
@@ -20,15 +20,16 @@ const videoSchema = new mongoose.Schema({
     },
     duration:{
         type:Number,
-        required:true,
+        required: true
     },
     views:{
         type:Number,
-        required:true,
+        default: 0
     },
     isPublished:{
         type:Boolean,
         required:true,
+        default: false
     },
     owner:{
         type:mongoose.Schema.Types.ObjectId,
