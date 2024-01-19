@@ -1,5 +1,5 @@
 import {Router} from 'express'
-import { uploadVideo } from '../controller/video.controller.js'
+import { createPlaylist, uploadVideo } from '../controller/video.controller.js'
 import {upload} from '../middlewares/multer.middleware.js'
 import {veryfyJWT} from '../middlewares/auth.controller.js'
 
@@ -18,5 +18,7 @@ router.route('/uploadVideo').post(veryfyJWT,
     ])
     , uploadVideo
 )
+
+router.route('/createPlaylist').post(veryfyJWT, createPlaylist)
 
 export default router

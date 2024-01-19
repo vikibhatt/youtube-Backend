@@ -2,6 +2,7 @@ import {asyncHandler} from '../utils/asyncHandler.js'
 import {ApiError} from '../utils/apiError.js'
 import {ApiResponse} from '../utils/apiResponse.js'
 import {Video} from '../models/video.model.js'
+import {Playlist} from '../models/playlist.model.js'
 import {cloudnaryFileUpload, destroyOldFilesFromCloudinary} from '../utils/cloudnary.js'
 import { User } from '../models/User.model.js'
 import mongoose, { Schema } from 'mongoose'
@@ -65,6 +66,107 @@ const uploadVideo = asyncHandler(async(req, res)=>{
     }
 })
 
+const createPlaylist = asyncHandler(async(req, res)=>{
+    const {name, description} = req.body
+
+    if(!name){
+        throw new ApiError(401, "name is required")
+    }
+
+    const user = await User.findById(req.user?._id)
+    const newPlayList = await Playlist.create()
+
+    if(!user){
+        throw new ApiError(404, "User not found")
+    }
+
+        try {
+            const playlist = await Playlist.aggregate([
+              {
+                $match: {
+                  _id: new mongoose.Types.ObjectId(newPlayList._id), 
+                },
+              },
+              {
+                $addFields: {
+                  name,
+                  description,
+                  owner: user._id,
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                },
+              },
+            ]);
+
+            const mergePlaylist = await Playlist.aggregate([
+              {
+                $match: {
+                    _id: playlist[0]._id
+                }
+              },
+              {
+                $lookup: {
+                  from: "users",
+                  localField: "owner",
+                  foreignField: "_id",
+                  as: "ownerPlaylist",
+                  pipeline: [
+                    {
+                        $lookup: {
+                          from: "playlist",
+                          localField: "_id",
+                          foreignField: "owner",
+                          as: "ownerIdPlayList",
+                          pipeline: [
+                            {
+                                $lookup: {
+                                  from: "videos",
+                                  localField: "video",
+                                  foreignField: "_id",
+                                  as: "videoPlayList",
+                                  pipeline: [
+                                    {
+                                        $lookup: {
+                                          from: "playlist",
+                                          localField: "_id",
+                                          foreignField: "video",
+                                          as: "videoIdPlayList",
+                                        },
+                                    }
+                                  ]
+                                },
+                            }
+                          ]
+                        },
+                    }
+                  ]
+                },
+              },
+              {
+                $addFields: {
+                  playlistUniqueId: "$_id",
+                },
+              },
+              {
+                $project: {
+                    _id: 0
+                }
+              }
+            ])
+            
+        console.log(mergePlaylist[0].ownerPlaylist)
+
+        return res
+        .status(200)
+        .json(new ApiResponse(200, mergePlaylist[0].ownerPlaylist,"Playlist created successfully" ))
+        } catch (error) {
+            throw new ApiError(500, error)
+        }
+})
+
 
 const deleteVideo = asyncHandler(async(req, res)=>{
     const user = User.findById(req.user?._id)
@@ -74,4 +176,4 @@ const deleteVideo = asyncHandler(async(req, res)=>{
     }
 })
 
-export {uploadVideo}
+export {uploadVideo, createPlaylist, deleteVideo}
