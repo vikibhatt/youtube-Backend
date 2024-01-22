@@ -1,6 +1,8 @@
 import {asyncHandler} from '../utils/asyncHandler.js'
 import {ApiError} from '../utils/apiError.js'
 import {User} from '../models/User.model.js'
+import {Video} from '../models/video.model.js'
+import { Subscription } from '../models/subscription.model.js'
 import {cloudnaryFileUpload, destroyOldFilesFromCloudinary} from '../utils/cloudnary.js'
 import {ApiResponse} from '../utils/apiResponse.js'
 import jwt from 'jsonwebtoken'
@@ -303,11 +305,11 @@ const deleteUserProfile = asyncHandler(async(req, res)=>{
    try {
       await currUser.deleteOne();
       if(avatar){
-         await destroyOldFilesFromCloudinary(avatar)
+         await destroyOldFilesFromCloudinary(avatar,'image')
       }
    
       if(coverImage){
-         await destroyOldFilesFromCloudinary(coverImage)
+         await destroyOldFilesFromCloudinary(coverImage,'image')
       }
 
       console.log("User profile deleted successfully")
@@ -320,127 +322,175 @@ const deleteUserProfile = asyncHandler(async(req, res)=>{
 })
 
 const getUserProfileDetails = asyncHandler(async(req, res)=>{
-   const {username} = req.query
 
-   if(!username){
-      throw new ApiError(401,"username not found")
-   }
+   // const channel = await User.aggregate(
+   //    [{
+   //       $match: {
+   //          username: username?.toLowerCase() 
+   //       }
+   //    },
+   //    {
+   //       $lookup:{
+   //          from: "subscriptions",  
+   //          localField: "_id",      
+   //          foreignField: "channel",
+   //          as: "subscribers"
+   //       }
+   //    },
+   //    {
+   //       $lookup:{
+   //          from: "subscriptions",
+   //          localField: "_id",
+   //          foreignField: "subscriber",
+   //          as: "subscribedTo"
+   //       }
+   //    },
+   //    {
+   //       $addFields:{
+   //          subscribersCount: {
+   //             $size: "$subscribers" 
+   //          },
+   //          subscribedToCount: {
+   //             $size: "$subscribedTo"
+   //          },
+   //          isSubscribed: {
+   //             $cond:{
+   //                if: { $in: [req.user?._id, "$subscribers.subscriber"]},
+   //                then: true,
+   //                else: false
+   //             }
+   //          }
+   //       }
+   //    },
+   //    {
+   //       $project: {
+   //          fullName: 1,
+   //          username: 1,
+   //          subscribersCount: 1,
+   //          subscribedToCount: 1,
+   //          avatar: 1,
+   //          coverImage: 1,
+   //          isSubscribed: 1
+   //       }
+   //    }]
+   // )
 
-   const channel = await User.aggregate(
-      [{
-         $match: {
-            username: username?.toLowerCase() 
-         }
-      },
-      {
-         $lookup:{
-            from: "subscriptions",  
-            localField: "_id",      
-            foreignField: "channel",
-            as: "subscribers"
-         }
-      },
-      {
-         $lookup:{
-            from: "subscriptions",
-            localField: "_id",
-            foreignField: "subscriber",
-            as: "subscribedTo"
-         }
-      },
-      {
-         $addFields:{
-            subscribersCount: {
-               $size: "$subscribers" 
-            },
-            subscribedToCount: {
-               $size: "$subscribedTo"
-            },
-            isSubscribed: {
-               $cond:{
-                  if: { $in: [req.user?._id, "$subscribers.subscriber"]},
-                  then: true,
-                  else: false
-               }
-            }
-         }
-      },
-      {
-         $project: {
-            fullName: 1,
-            username: 1,
-            subscribersCount: 1,
-            subscribedToCount: 1,
-            avatar: 1,
-            coverImage: 1,
-            isSubscribed: 1
-         }
-      }]
-   )
-
-   if(!channel?.length){
-      throw new ApiError(404,"Channel not exist")
-   }
+   const subscribedTo = await Subscription.find({subscriber: req.user?._id})
+   const subscribers = await Subscription.find({channel: req.user?._id})
 
    console.log("User channel fetched successfully")
 
    return res 
    .status(200)
    .json(
-      new ApiResponse(200,channel[0],"User channel fetched successfully")
+      new ApiResponse(200,{
+         followers: subscribers.length,
+         followed: subscribedTo.length,
+      },"User channel fetched successfully")
    )
+})
+
+const addToWatchHistory = asyncHandler(async(req, res)=>{ 
+  const videoId = req.query.videoId
+
+  const user = await User.findById(req.user?._id)
+
+  if(!user){
+   throw new ApiError(404," User not found")
+  }
+  let length = user.watchHistory.length
+
+  if(user.watchHistory[0].toString() !== videoId.toString()){
+   if(length >= 100){
+      user.watchHistory.pop()
+   }
+   user.watchHistory.unshift(videoId)
+   user.save({validateBeforeSave: false})
+ 
+   console.log(`new video with videoId: ${videoId} added to watchhistory successfully`)
+ 
+   return res 
+   .status(200)
+   .json(
+    new ApiResponse(200,videoId,"new video added to watchhistory successfully")
+   )
+  }
+  else{
+   throw new ApiError(401,"video already watched")
+  }
 })
 
 const getWatchHistory = asyncHandler(async(req, res)=>{ 
-   const user = await User.aggregate([
-      {
-         $match: {
-            _id: new mongoose.Types.ObjectId(req.user._id)
-         }
-      },
-      {
-         $lookup:{
-            from: 'videos',
-            localField: 'watchHistory',
-            foreignField: '_id',
-            as: "watchHistory",
-            pipeline: [
-               {
-                  $lookup:{
-                     from: 'users',
-                     localField: 'owner',
-                     foreignField: '_id',
-                     as: "owner",
-                     pipeline:[
-                        {
-                           $project: {
-                              fullName: 1,
-                              username: 1,
-                              avatar: 1,
-                           }
-                        }
-                     ]
-                  },
-               },
-               {
-                  $addFields:{
-                     owner: {
-                        $first: "$owner"
-                     }
-                  }
-               }
-            ]
-         }
-      }
-   ])
+    const user = await User.findById(req.user?._id)
 
-   console.log("user Watch History fetched successfully")
-
-   return res
-   .status(200)
-   .json(
-      new ApiResponse(200,user[0].watchHistory,"user Watch History fetched successfully")
+    const watchHistory = user.watchHistory
+  
+    console.log(`Watchhistory retrieved successfully`)
+  
+    return res 
+    .status(200)
+    .json(
+     new ApiResponse(200,{
+      totalWatches: watchHistory.length,
+      watchHistory,
+   },"Watchhistory retrieved successfully")
    )
 })
+ 
+const toggleSubscriber = asyncHandler(async(req, res)=>{
+   const videoId = req.query.videoId
 
-export { registerUser, loginUser, logoutUser, getUser, refreshTokenValidator, changeCurrentPassword,updateUserDetails, deleteUserProfile, getUserProfileDetails, getWatchHistory }   
+   if(!videoId){
+      throw new ApiError(404,"Video not found")
+   }
+
+   try { 
+      const user = await User.findById(req.user?._id)
+      const video = await Video.findById(videoId);
+
+      if(!user){
+         throw new ApiError(404," User not found")
+      }
+      if(!video){
+         throw new ApiError(404," video not found")
+      }
+
+      const isUserSubscribed = await Subscription.exists({
+         channel: video.owner,  
+         subscriber: req.user?._id, 
+      });
+
+      if(!isUserSubscribed) {
+         if (video.owner != req.user?._id) {
+            const newSubscription = await Subscription.create({
+               channel: video.owner,
+               subscriber: req.user?._id,
+            });
+   
+            console.log("New subscriber added successfully");
+   
+            return res
+               .status(200)
+               .json(
+                  new ApiResponse(200, newSubscription, "New subscriber added successfully")
+               );
+         } else {
+            throw new ApiError(401,"Unauthorized access")
+         }
+      } else {
+         const subscriptionId = await Subscription.findOne({
+            $and: [{subscriber: req.user?._id},{channel: video.owner}]
+         })
+         
+         await Subscription.deleteOne(subscriptionId._id)
+         console.log("User unsubscribed successfully");
+         return res
+            .status(200)
+            .json(new ApiResponse(200, {}, "User unsubscribed successfully"));
+      }
+   } catch (error) {
+      throw new ApiError(500,error)
+   }
+})
+
+export { registerUser, loginUser, logoutUser, getUser, refreshTokenValidator, changeCurrentPassword,updateUserDetails, deleteUserProfile, getUserProfileDetails, addToWatchHistory, toggleSubscriber, getWatchHistory }   

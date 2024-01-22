@@ -31,8 +31,7 @@ const UserSchema = new mongoose.Schema({
         type:String,   
     },
     watchHistory:[{
-        type: mongoose.Schema.Types.ObjectId,
-        ref:'Video'
+        type: String,
     }],
     password:{
         type:String,

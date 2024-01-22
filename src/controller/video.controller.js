@@ -52,8 +52,10 @@ const uploadVideo = asyncHandler(async(req, res)=>{
             video: videoPath?.url,
             thumbnail: thumbnailPath?.url,
             duration: videoPath?.duration,
-            isPublished: true
+            isPublished: true,
+            owner: req.user._id
         })
+
         console.log("Video uploaded successfully")
 
         return res
@@ -66,114 +68,178 @@ const uploadVideo = asyncHandler(async(req, res)=>{
     }
 })
 
-const createPlaylist = asyncHandler(async(req, res)=>{
-    const {name, description} = req.body
+const viewVideo = asyncHandler(async(req, res)=>{
+  const user = await User.findById(req.user?._id)
+  const {videoId} = req.query
 
-    if(!name){
-        throw new ApiError(401, "name is required")
+  if(!user){
+     throw new ApiError(404," User not found ")
+  }
+
+  try {
+     const video = await Video.findById(videoId)
+
+     video.views = video.views+1
+     video.save({validateBeforeSave: false})
+
+     if(!video){
+        throw new ApiError(404, "Video not found")
+     }
+
+     return res
+     .status(200)
+     .json(
+        new ApiResponse(200,video.views,"views increased successfully")
+     )
+  } catch (error) {
+     throw new ApiError(500, error)
+  }
+})
+
+const createPlaylist = asyncHandler(async(req, res)=>{
+    const {name, description, videoId} = req.body
+
+    if(!name || !description){
+        throw new ApiError(401, "name or description is required")
     }
 
     const user = await User.findById(req.user?._id)
-    const newPlayList = await Playlist.create()
 
     if(!user){
         throw new ApiError(404, "User not found")
     }
 
         try {
-            const playlist = await Playlist.aggregate([
-              {
-                $match: {
-                  _id: new mongoose.Types.ObjectId(newPlayList._id), 
-                },
-              },
-              {
-                $addFields: {
-                  name,
-                  description,
-                  owner: user._id,
-                },
-              },
-              {
-                $project: {
-                  _id: 1,
-                },
-              },
-            ]);
+          const checkPlayList = await Playlist.exists({ 
+            $and: [{name: name},{owner: req.user?._id}]
+          })
 
-            const mergePlaylist = await Playlist.aggregate([
-              {
-                $match: {
-                    _id: playlist[0]._id
-                }
-              },
-              {
-                $lookup: {
-                  from: "users",
-                  localField: "owner",
-                  foreignField: "_id",
-                  as: "ownerPlaylist",
-                  pipeline: [
-                    {
-                        $lookup: {
-                          from: "playlist",
-                          localField: "_id",
-                          foreignField: "owner",
-                          as: "ownerIdPlayList",
-                          pipeline: [
-                            {
-                                $lookup: {
-                                  from: "videos",
-                                  localField: "video",
-                                  foreignField: "_id",
-                                  as: "videoPlayList",
-                                  pipeline: [
-                                    {
-                                        $lookup: {
-                                          from: "playlist",
-                                          localField: "_id",
-                                          foreignField: "video",
-                                          as: "videoIdPlayList",
-                                        },
-                                    }
-                                  ]
-                                },
-                            }
-                          ]
-                        },
-                    }
-                  ]
-                },
-              },
-              {
-                $addFields: {
-                  playlistUniqueId: "$_id",
-                },
-              },
-              {
-                $project: {
-                    _id: 0
-                }
-              }
-            ])
-            
-        console.log(mergePlaylist[0].ownerPlaylist)
+          if(checkPlayList){
+            throw new ApiError(401, "Playlist already exist")
+          }
+
+          const newPlayList = await Playlist.create({
+            name,
+            description,
+            videoId: videoId,
+            owner: req.user?._id
+          })
 
         return res
         .status(200)
-        .json(new ApiResponse(200, mergePlaylist[0].ownerPlaylist,"Playlist created successfully" ))
+        .json(new ApiResponse(200, newPlayList,"Playlist created successfully" ))
         } catch (error) {
             throw new ApiError(500, error)
         }
 })
 
+const addVideoToPlaylist = asyncHandler(async(req, res)=>{
+  const {name, videoId} = req.body
+
+  if(!videoId){
+      throw new ApiError(401, "Video is required")
+  }
+
+  const user = await User.findById(req.user?._id)
+
+  if(!user){
+      throw new ApiError(404, "User not found")
+  }
+
+      try {
+        const checkPlayList = await Playlist.exists({
+          $and: [{name: name},{owner: req.user?._id}]
+        })
+
+        if(!checkPlayList){
+          throw new ApiError(401, "Playlist doesn't exist")
+        }
+
+        const newPlayList = await Playlist.findOne({
+          $and: [{name: name},{owner: req.user?._id}]
+        })
+
+        if(newPlayList.videos.includes(videoId)){
+          throw new ApiError(401,"Video already exists inside the playlist")
+        }
+
+        newPlayList.videos.unshift(videoId)
+        newPlayList.save();
+
+      return res
+      .status(200)
+      .json(new ApiResponse(200, newPlayList,`new video with videoId: ${videoId} added to playlist successfully` ))
+      } catch (error) {
+          throw new ApiError(500, error)
+      }
+})
+
+const getAllVideos = asyncHandler(async(req, res)=>{
+  const getVideos = await Video.find({owner: req.user._id})
+
+  return res 
+  .status(200)
+  .json(
+    new ApiResponse(200,getVideos,"All videos retrieved successfully")
+  )
+})
+
+const getVideo = asyncHandler(async(req, res)=>{
+  const videoId = req.query.videoId
+
+  const video = await Video.findById(videoId)
+
+  if(!video){
+    throw new ApiError(404, "videos not found")
+  }
+
+  console.log("Video retrieved successfully")
+
+  return res 
+  .status(200)
+  .json(
+    new ApiResponse(200, video.owner, "Video retrieved successfully")
+  )
+})
 
 const deleteVideo = asyncHandler(async(req, res)=>{
-    const user = User.findById(req.user?._id)
+    const user = await User.findById(req.user?._id)
+    const videoId = req.query.videoId
 
     if(!user){
         throw new ApiError(404, "User not found")
     }
+
+    const video = await Video.findById(videoId)
+
+    if(!video){
+      throw new ApiError(404,"video not found")
+    }
+
+    const videoFile = video?.video
+    const thumbnailFile = video?.thumbnail
+
+    try {
+      await video.deleteOne()
+
+      if(videoFile){
+        await destroyOldFilesFromCloudinary(videoFile,'video')
+      }
+      if(thumbnailFile){
+        await destroyOldFilesFromCloudinary(thumbnailFile,'image')
+      }
+
+      console.log("Video deleted successfully")
+
+      return res
+      .status(200)
+      .json(
+        new ApiResponse(200,{},"Video deleted successfully")
+      )
+    } catch (error) {
+      throw new ApiError(500, error)
+    }
+    
 })
 
-export {uploadVideo, createPlaylist, deleteVideo}
+export {uploadVideo, createPlaylist, deleteVideo, getAllVideos, viewVideo, addVideoToPlaylist}
