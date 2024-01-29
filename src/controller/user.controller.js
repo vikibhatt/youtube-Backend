@@ -6,7 +6,6 @@ import { Subscription } from '../models/subscription.model.js'
 import {cloudnaryFileUpload, destroyOldFilesFromCloudinary} from '../utils/cloudnary.js'
 import {ApiResponse} from '../utils/apiResponse.js'
 import jwt from 'jsonwebtoken'
-import mongoose from 'mongoose'
 
 const generateAccessTokenAndRefreshToken = async(userId) => {
    try {
@@ -22,7 +21,7 @@ const generateAccessTokenAndRefreshToken = async(userId) => {
       throw new ApiError(500,"Error while generating access and refresh tokens")
    }
 }
-
+ 
 const registerUser = asyncHandler(async (req,res)=>{
    const {username,email,fullname,password} = req.body
 
@@ -37,8 +36,8 @@ const registerUser = asyncHandler(async (req,res)=>{
    const existingUser = await User.findOne({email})
 
    if(existingUser){
-      throw new ApiError(401, "User already exist")
-   }
+      throw new ApiError(401, "User already exist")  
+   } 
    
    if(existingUserName){
       throw new ApiError(401, "Username already taken")
@@ -46,7 +45,7 @@ const registerUser = asyncHandler(async (req,res)=>{
 
    let avatarLocalPath;
    let coverImageLocalPath; 
-
+ 
    if(req.files && Array.isArray(req.files?.avatar)){
       if(req.files?.avatar.length > 0){
          avatarLocalPath = req.files?.avatar[0]?.path
@@ -89,7 +88,7 @@ const registerUser = asyncHandler(async (req,res)=>{
 const loginUser = asyncHandler(async(req,res)=>{
    const {username,email,password} = req.body;
    if(
-      [username, email, password].some((field)=>
+      [(username || email), password].some((field)=>
       field?.trim() === "")
      ){
       throw new ApiError(400,"All fields required")
