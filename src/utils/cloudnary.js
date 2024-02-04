@@ -1,5 +1,10 @@
 import {v2 as cloudnary} from 'cloudinary'
 import fs from 'fs'
+import dotenv from 'dotenv'
+
+dotenv.config({
+    path: './.env'
+})
           
 cloudnary.config({ 
   cloud_name: process.env.CLOUDNARY_CLOUD_NAME, 
